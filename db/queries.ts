@@ -214,15 +214,27 @@ export const getUserSubscription = cache(async () => {
     where: eq(userSubscription.userId, userId),
   });
 
-  if (!data) return null;
+  // if (!data) return null;
 
-  const isActive =
-    data.stripePriceId &&
-    data.stripeCurrentPeriodEnd?.getTime() + DAY_IN_MS > Date.now();
+  // const isActive =
+  //   data.stripePriceId &&
+  //   data.stripeCurrentPeriodEnd?.getTime() + DAY_IN_MS > Date.now();
 
+  // return {
+  //   ...data,
+  //   isActive: !!isActive,
+  // };
+
+  // TEMPORARY: Disable Stripe and unlock all features
   return {
+    id: 0,
+    userId: userId,
+    stripeCustomerId: "",
+    stripeSubscriptionId: "",
+    stripePriceId: "",
+    stripeCurrentPeriodEnd: new Date(),
     ...data,
-    isActive: !!isActive,
+    isActive: true,
   };
 });
 

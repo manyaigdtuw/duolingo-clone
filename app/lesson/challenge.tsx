@@ -2,6 +2,7 @@ import { challengeOptions, challenges } from "@/db/schema";
 import { cn } from "@/lib/utils";
 
 import { Card } from "./card";
+import { ChallengeInput } from "./challenge-input";
 
 type ChallengeProps = {
   options: (typeof challengeOptions.$inferSelect)[];
@@ -10,6 +11,8 @@ type ChallengeProps = {
   selectedOption?: number;
   disabled?: boolean;
   type: (typeof challenges.$inferSelect)["type"];
+  inputValue?: string;
+  onInputChange?: (value: string) => void;
 };
 
 export const Challenge = ({
@@ -19,7 +22,20 @@ export const Challenge = ({
   selectedOption,
   disabled,
   type,
+  inputValue,
+  onInputChange,
 }: ChallengeProps) => {
+  if (type === "FILL_IN_THE_BLANKS") {
+    return (
+      <ChallengeInput
+        value={inputValue}
+        onChange={onInputChange || (() => {})}
+        status={status}
+        disabled={disabled}
+      />
+    );
+  }
+
   return (
     <div
       className={cn(
