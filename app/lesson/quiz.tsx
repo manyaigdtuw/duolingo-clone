@@ -95,13 +95,18 @@ export const Quiz = ({
     setSelectedOption(id);
   };
 
+  const onInputChange = (value: string) => {
+    if (status !== "none") return;
+
+    setInputValue(value);
+  };
+
   const onContinue = () => {
     if (!selectedOption && !inputValue) return;
 
     if (status === "wrong") {
       setStatus("none");
       setSelectedOption(undefined);
-      setInputValue("");
       return;
     }
 
@@ -258,7 +263,7 @@ export const Quiz = ({
                 disabled={pending}
                 type={challenge.type}
                 inputValue={inputValue}
-                onInputChange={setInputValue}
+                onInputChange={onInputChange}
               />
             </div>
           </div>

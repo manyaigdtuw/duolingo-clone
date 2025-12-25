@@ -210,9 +210,9 @@ export const getUserSubscription = cache(async () => {
 
   if (!userId) return null;
 
-  const data = await db.query.userSubscription.findFirst({
-    where: eq(userSubscription.userId, userId),
-  });
+  // const data = await db.query.userSubscription.findFirst({
+  //   where: eq(userSubscription.userId, userId),
+  // });
 
   // if (!data) return null;
 
@@ -233,7 +233,7 @@ export const getUserSubscription = cache(async () => {
     stripeSubscriptionId: "",
     stripePriceId: "",
     stripeCurrentPeriodEnd: new Date(),
-    ...data,
+    // ...data,
     isActive: true,
   };
 });
