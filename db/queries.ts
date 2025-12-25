@@ -28,12 +28,20 @@ export const getUserProgress = cache(async () => {
 
   const data = await db.query.userProgress.findFirst({
     where: eq(userProgress.userId, userId),
-    with: {
-      activeCourse: true,
-    },
   });
 
-  return data;
+  if (!data) return null;
+
+  const activeCourse = data.activeCourseId
+    ? await db.query.courses.findFirst({
+        where: eq(courses.id, data.activeCourseId),
+      })
+    : null;
+
+  return {
+    ...data,
+    activeCourse,
+  };
 });
 
 export const getUnits = cache(async () => {
