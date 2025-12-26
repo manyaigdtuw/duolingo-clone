@@ -11,7 +11,7 @@
     "format:fix": "prettier --write --ignore-path .gitignore .",
     "db:studio": "npx drizzle-kit studio",
     "db:push": "npx drizzle-kit push",
-    "db:prod": "tsx ./scripts/prod.ts"
+    "db:prod": "node ./scripts/prod.js"
   },
   "author": {
     "name": "Sanidhya Kumar Verma",
@@ -76,7 +76,6 @@
   ],
   "dependencies": {
     "@clerk/nextjs": "^6.22.0",
-    "@neondatabase/serverless": "^1.0.1",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-progress": "^1.0.3",
@@ -89,6 +88,7 @@
     "lucide-react": "^0.359.0",
     "next": "^14.2.35",
     "next-themes": "^0.3.0",
+    "pg": "^8.16.3",
     "ra-data-simple-rest": "^5.8.4",
     "react": "^18",
     "react-admin": "^4.16.20",
@@ -103,22 +103,14 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "@typescript-eslint/eslint-plugin": "^7.3.1",
-    "@typescript-eslint/parser": "^7.3.1",
     "autoprefixer": "^10.0.1",
     "drizzle-kit": "^0.31.1",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.1.4",
-    "eslint-config-prettier": "^9.1.0",
-    "pg": "^8.11.3",
+    "eslint-config-prettier": "^9.1.2",
     "postcss": "^8",
     "prettier": "^3.2.5",
     "prettier-plugin-tailwindcss": "^0.5.12",
-    "tailwindcss": "^3.3.0",
-    "tsx": "^4.7.1",
-    "typescript": "^5"
+    "tailwindcss": "^3.3.0"
   }
 }
