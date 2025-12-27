@@ -1,5 +1,5 @@
 import "dotenv/config";
-import db from "../db/index";
+import db from "../db/index.js";
 
 const main = async () => {
   try {
