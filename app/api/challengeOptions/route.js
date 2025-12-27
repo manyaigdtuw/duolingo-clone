@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 
-import db from "@/db/drizzle";
-import { challengeOptions } from "@/db/schema";
+import db from "@/db/index";
 import { getIsAdmin } from "@/lib/admin";
 
 export const GET = async () => {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) return new NextResponse("Unauthorized.", { status: 401 });
 
-  const data = await db.query.challengeOptions.findMany();
+  const { rows: data } = await db.query("SELECT * FROM challenge_options");
 
   return NextResponse.json(data);
 };
@@ -19,12 +18,10 @@ export const POST = async (req) => {
 
   const body = await req.json();
 
-  const data = await db
-    .insert(challengeOptions)
-    .values({
-      ...body,
-    })
-    .returning();
+  const { rows: data } = await db.query(
+    "INSERT INTO challenge_options (challenge_id, text, correct, image_src, audio_src) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+    [body.challengeId, body.text, body.correct, body.imageSrc, body.audioSrc]
+  );
 
   return NextResponse.json(data[0]);
 };

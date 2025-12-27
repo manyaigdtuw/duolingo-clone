@@ -1,327 +1,149 @@
 import "dotenv/config";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
-
-import * as schema from "../db/schema";
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const db = drizzle(pool, { schema });
+import db from "../db/index";
 
 const main = async () => {
   try {
     console.log("Seeding database");
 
     // Delete all existing data
-    await Promise.all([
-      db.delete(schema.userProgress),
-      db.delete(schema.challenges),
-      db.delete(schema.units),
-      db.delete(schema.lessons),
-      db.delete(schema.courses),
-      db.delete(schema.challengeOptions),
-      db.delete(schema.userSubscription),
-    ]);
+    await db.query("DELETE FROM user_progress");
+    await db.query("DELETE FROM challenges");
+    await db.query("DELETE FROM units");
+    await db.query("DELETE FROM lessons");
+    await db.query("DELETE FROM courses");
+    await db.query("DELETE FROM challenge_options");
+    await db.query("DELETE FROM user_subscription");
 
     // Insert courses
-    const courses = await db
-      .insert(schema.courses)
-      .values([{ title: "Spanish", imageSrc: "/es.svg" }])
-      .returning();
+    const { rows: courses } = await db.query(
+      "INSERT INTO courses (title, image_src) VALUES ($1, $2) RETURNING *",
+      ["Spanish", "/es.svg"]
+    );
 
     // For each course, insert units
     for (const course of courses) {
-      const units = await db
-        .insert(schema.units)
-        .values([
-          {
-            courseId: course.id,
-            title: "Unit 1",
-            description: `Learn the basics of ${course.title}`,
-            order: 1,
-          },
-          {
-            courseId: course.id,
-            title: "Unit 2",
-            description: `Learn intermediate ${course.title}`,
-            order: 2,
-          },
-        ])
-        .returning();
+      const { rows: units } = await db.query(
+        `INSERT INTO units (course_id, title, description, "order") VALUES ($1, $2, $3, $4), ($1, $5, $6, $7) RETURNING *`,
+        [
+          course.id,
+          "Unit 1",
+          `Learn the basics of ${course.title}`,
+          1,
+          "Unit 2",
+          `Learn intermediate ${course.title}`,
+          2,
+        ]
+      );
 
       // For each unit, insert lessons
       for (const unit of units) {
-        const lessons = await db
-          .insert(schema.lessons)
-          .values([
-            { unitId: unit.id, title: "Nouns", order: 1 },
-            { unitId: unit.id, title: "Verbs", order: 2 },
-            { unitId: unit.id, title: "Adjectives", order: 3 },
-            { unitId: unit.id, title: "Phrases", order: 4 },
-            { unitId: unit.id, title: "Sentences", order: 5 },
-          ])
-          .returning();
+        const { rows: lessons } = await db.query(
+          `INSERT INTO lessons (unit_id, title, "order") VALUES
+          ($1, 'Nouns', 1),
+          ($1, 'Verbs', 2),
+          ($1, 'Adjectives', 3),
+          ($1, 'Phrases', 4),
+          ($1, 'Sentences', 5)
+          RETURNING *`,
+          [unit.id]
+        );
 
         // For each lesson, insert challenges
         for (const lesson of lessons) {
-          const challenges = await db
-            .insert(schema.challenges)
-            .values([
-              {
-                lessonId: lesson.id,
-                type: "SELECT",
-                question: 'Which one of these is "the man"?',
-                order: 1,
-              },
-              {
-                lessonId: lesson.id,
-                type: "SELECT",
-                question: 'Which one of these is "the woman"?',
-                order: 2,
-              },
-              {
-                lessonId: lesson.id,
-                type: "SELECT",
-                question: 'Which one of these is "the boy"?',
-                order: 3,
-              },
-              {
-                lessonId: lesson.id,
-                type: "ASSIST",
-                question: '"the man"',
-                order: 4,
-              },
-              {
-                lessonId: lesson.id,
-                type: "SELECT",
-                question: 'Which one of these is "the zombie"?',
-                order: 5,
-              },
-              {
-                lessonId: lesson.id,
-                type: "SELECT",
-                question: 'Which one of these is "the robot"?',
-                order: 6,
-              },
-              {
-                lessonId: lesson.id,
-                type: "SELECT",
-                question: 'Which one of these is "the girl"?',
-                order: 7,
-              },
-              {
-                lessonId: lesson.id,
-                type: "ASSIST",
-                question: '"the zombie"',
-                order: 8,
-              },
-            ])
-            .returning();
+          const { rows: challenges } = await db.query(
+            `INSERT INTO challenges (lesson_id, type, question, "order") VALUES
+            ($1, 'SELECT', 'Which one of these is "the man"?', 1),
+            ($1, 'SELECT', 'Which one of these is "the woman"?', 2),
+            ($1, 'SELECT', 'Which one of these is "the boy"?', 3),
+            ($1, 'ASSIST', '"the man"', 4),
+            ($1, 'SELECT', 'Which one of these is "the zombie"?', 5),
+            ($1, 'SELECT', 'Which one of these is "the robot"?', 6),
+            ($1, 'SELECT', 'Which one of these is "the girl"?', 7),
+            ($1, 'ASSIST', '"the zombie"', 8)
+            RETURNING *`,
+            [lesson.id]
+          );
 
           // For each challenge, insert challenge options
           for (const challenge of challenges) {
             if (challenge.order === 1) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "el hombre",
-                  imageSrc: "/man.svg",
-                  audioSrc: "/es_man.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "la mujer",
-                  imageSrc: "/woman.svg",
-                  audioSrc: "/es_woman.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el chico",
-                  imageSrc: "/boy.svg",
-                  audioSrc: "/es_boy.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, image_src, audio_src) VALUES
+                ($1, true, 'el hombre', '/man.svg', '/es_man.mp3'),
+                ($1, false, 'la mujer', '/woman.svg', '/es_woman.mp3'),
+                ($1, false, 'el chico', '/boy.svg', '/es_boy.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 2) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "la mujer",
-                  imageSrc: "/woman.svg",
-                  audioSrc: "/es_woman.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el chico",
-                  imageSrc: "/boy.svg",
-                  audioSrc: "/es_boy.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el hombre",
-                  imageSrc: "/man.svg",
-                  audioSrc: "/es_man.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, image_src, audio_src) VALUES
+                ($1, true, 'la mujer', '/woman.svg', '/es_woman.mp3'),
+                ($1, false, 'el chico', '/boy.svg', '/es_boy.mp3'),
+                ($1, false, 'el hombre', '/man.svg', '/es_man.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 3) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "la mujer",
-                  imageSrc: "/woman.svg",
-                  audioSrc: "/es_woman.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el hombre",
-                  imageSrc: "/man.svg",
-                  audioSrc: "/es_man.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "el chico",
-                  imageSrc: "/boy.svg",
-                  audioSrc: "/es_boy.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, image_src, audio_src) VALUES
+                ($1, false, 'la mujer', '/woman.svg', '/es_woman.mp3'),
+                ($1, false, 'el hombre', '/man.svg', '/es_man.mp3'),
+                ($1, true, 'el chico', '/boy.svg', '/es_boy.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 4) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "la mujer",
-                  audioSrc: "/es_woman.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "el hombre",
-                  audioSrc: "/es_man.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el chico",
-                  audioSrc: "/es_boy.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, audio_src) VALUES
+                ($1, false, 'la mujer', '/es_woman.mp3'),
+                ($1, true, 'el hombre', '/es_man.mp3'),
+                ($1, false, 'el chico', '/es_boy.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 5) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el hombre",
-                  imageSrc: "/man.svg",
-                  audioSrc: "/es_man.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "la mujer",
-                  imageSrc: "/woman.svg",
-                  audioSrc: "/es_woman.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "el zombie",
-                  imageSrc: "/zombie.svg",
-                  audioSrc: "/es_zombie.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, image_src, audio_src) VALUES
+                ($1, false, 'el hombre', '/man.svg', '/es_man.mp3'),
+                ($1, false, 'la mujer', '/woman.svg', '/es_woman.mp3'),
+                ($1, true, 'el zombie', '/zombie.svg', '/es_zombie.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 6) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "el robot",
-                  imageSrc: "/robot.svg",
-                  audioSrc: "/es_robot.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el zombie",
-                  imageSrc: "/zombie.svg",
-                  audioSrc: "/es_zombie.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el chico",
-                  imageSrc: "/boy.svg",
-                  audioSrc: "/es_boy.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, image_src, audio_src) VALUES
+                ($1, true, 'el robot', '/robot.svg', '/es_robot.mp3'),
+                ($1, false, 'el zombie', '/zombie.svg', '/es_zombie.mp3'),
+                ($1, false, 'el chico', '/boy.svg', '/es_boy.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 7) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "la nina",
-                  imageSrc: "/girl.svg",
-                  audioSrc: "/es_girl.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el zombie",
-                  imageSrc: "/zombie.svg",
-                  audioSrc: "/es_zombie.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el hombre",
-                  imageSrc: "/man.svg",
-                  audioSrc: "/es_man.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, image_src, audio_src) VALUES
+                ($1, true, 'la nina', '/girl.svg', '/es_girl.mp3'),
+                ($1, false, 'el zombie', '/zombie.svg', '/es_zombie.mp3'),
+                ($1, false, 'el hombre', '/man.svg', '/es_man.mp3')`,
+                [challenge.id]
+              );
             }
 
             if (challenge.order === 8) {
-              await db.insert(schema.challengeOptions).values([
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "la mujer",
-                  audioSrc: "/es_woman.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: true,
-                  text: "el zombie",
-                  audioSrc: "/es_zombie.mp3",
-                },
-                {
-                  challengeId: challenge.id,
-                  correct: false,
-                  text: "el chico",
-                  audioSrc: "/es_boy.mp3",
-                },
-              ]);
+              await db.query(
+                `INSERT INTO challenge_options (challenge_id, correct, text, audio_src) VALUES
+                ($1, false, 'la mujer', '/es_woman.mp3'),
+                ($1, true, 'el zombie', '/es_zombie.mp3'),
+                ($1, false, 'el chico', '/es_boy.mp3')`,
+                [challenge.id]
+              );
             }
           }
         }

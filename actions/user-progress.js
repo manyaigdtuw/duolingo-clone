@@ -1,18 +1,16 @@
 "use server";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { MAX_HEARTS, POINTS_TO_REFILL } from "@/constants";
-import db from "@/db/drizzle";
+import db from "@/db/index";
 import {
   getCourseById,
   getUserProgress,
   getUserSubscription,
 } from "@/db/queries";
-import { challengeProgress, challenges, userProgress } from "@/db/schema";
 
 export const upsertUserProgress = async (courseId) => {
   const { userId } = await auth();
@@ -30,26 +28,37 @@ export const upsertUserProgress = async (courseId) => {
   const existingUserProgress = await getUserProgress();
 
   if (existingUserProgress) {
-    await db
-      .update(userProgress)
-      .set({
-        activeCourseId: courseId,
-        userName: user.firstName || "User",
-        userImageSrc: user.imageUrl || "/mascot.svg",
-      })
-      .where(eq(userProgress.userId, userId));
+    await db.query(
+      `
+      UPDATE user_progress
+      SET active_course_id = $1, user_name = $2, user_image_src = $3
+      WHERE user_id = $4
+    `,
+      [
+        courseId,
+        user.firstName || "User",
+        user.imageUrl || "/mascot.svg",
+        userId,
+      ]
+    );
 
     revalidatePath("/courses");
     revalidatePath("/learn");
     redirect("/learn");
   }
 
-  await db.insert(userProgress).values({
-    userId,
-    activeCourseId: courseId,
-    userName: user.firstName || "User",
-    userImageSrc: user.imageUrl || "/mascot.svg",
-  });
+  await db.query(
+    `
+    INSERT INTO user_progress (user_id, active_course_id, user_name, user_image_src)
+    VALUES ($1, $2, $3, $4)
+  `,
+    [
+      userId,
+      courseId,
+      user.firstName || "User",
+      user.imageUrl || "/mascot.svg",
+    ]
+  );
 
   revalidatePath("/courses");
   revalidatePath("/learn");
@@ -64,22 +73,25 @@ export const reduceHearts = async (challengeId) => {
   const currentUserProgress = await getUserProgress();
   const userSubscription = await getUserSubscription();
 
-  const challenge = await db.query.challenges.findFirst({
-    where: eq(challenges.id, challengeId),
-  });
+  const { rows: challenges } = await db.query(
+    "SELECT * FROM challenges WHERE id = $1",
+    [challengeId]
+  );
+  const challenge = challenges[0];
 
   if (!challenge) throw new Error("Challenge not found.");
 
-  const lessonId = challenge.lessonId;
+  const lessonId = challenge.lesson_id;
 
-  const existingChallengeProgress = await db.query.challengeProgress.findFirst({
-    where: and(
-      eq(challengeProgress.userId, userId),
-      eq(challengeProgress.challengeId, challengeId)
-    ),
-  });
+  const { rows: existingChallengeProgress } = await db.query(
+    `
+    SELECT * FROM challenge_progress
+    WHERE user_id = $1 AND challenge_id = $2
+  `,
+    [userId, challengeId]
+  );
 
-  const isPractice = !!existingChallengeProgress;
+  const isPractice = !!existingChallengeProgress.length;
 
   if (isPractice) return { error: "practice" };
 
@@ -89,12 +101,14 @@ export const reduceHearts = async (challengeId) => {
 
   if (currentUserProgress.hearts === 0) return { error: "hearts" };
 
-  await db
-    .update(userProgress)
-    .set({
-      hearts: Math.max(currentUserProgress.hearts - 1, 0),
-    })
-    .where(eq(userProgress.userId, userId));
+  await db.query(
+    `
+    UPDATE user_progress
+    SET hearts = GREATEST(hearts - 1, 0)
+    WHERE user_id = $1
+  `,
+    [userId]
+  );
 
   revalidatePath("/shop");
   revalidatePath("/learn");
@@ -112,13 +126,14 @@ export const refillHearts = async () => {
   if (currentUserProgress.points < POINTS_TO_REFILL)
     throw new Error("Not enough points.");
 
-  await db
-    .update(userProgress)
-    .set({
-      hearts: MAX_HEARTS,
-      points: currentUserProgress.points - POINTS_TO_REFILL,
-    })
-    .where(eq(userProgress.userId, currentUserProgress.userId));
+  await db.query(
+    `
+    UPDATE user_progress
+    SET hearts = $1, points = points - $2
+    WHERE user_id = $3
+  `,
+    [MAX_HEARTS, POINTS_TO_REFILL, currentUserProgress.userId]
+  );
 
   revalidatePath("/shop");
   revalidatePath("/learn");

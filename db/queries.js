@@ -1,24 +1,17 @@
 import { cache } from "react";
 
 import { auth } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
 
-import db from "./drizzle";
-import {
-  challengeProgress,
-  courses,
-  lessons,
-  units,
-  userProgress,
-  userSubscription,
-} from "./schema";
+import db from "./index";
 
 const DAY_IN_MS = 86_400_000;
 
 export const getCourses = cache(async () => {
-  const data = await db.query.courses.findMany();
-
-  return data;
+  const { rows } = await db.query("SELECT * FROM courses");
+  return rows.map((course) => ({
+    ...course,
+    imageSrc: course.image_src,
+  }));
 });
 
 export const getUserProgress = cache(async () => {
@@ -26,14 +19,38 @@ export const getUserProgress = cache(async () => {
 
   if (!userId) return null;
 
-  const data = await db.query.userProgress.findFirst({
-    where: eq(userProgress.userId, userId),
-    with: {
-      activeCourse: true,
-    },
-  });
+  const { rows } = await db.query(
+    `
+    SELECT
+      up.*,
+      c.title as active_course_title,
+      c.image_src as active_course_image_src
+    FROM user_progress up
+    LEFT JOIN courses c ON up.active_course_id = c.id
+    WHERE up.user_id = $1
+  `,
+    [userId]
+  );
 
-  return data;
+  const data = rows[0];
+
+  if (!data) return null;
+
+  return {
+    userId: data.user_id,
+    userName: data.user_name,
+    userImageSrc: data.user_image_src,
+    activeCourseId: data.active_course_id,
+    hearts: data.hearts,
+    points: data.points,
+    activeCourse: data.active_course_id
+      ? {
+          id: data.active_course_id,
+          title: data.active_course_title,
+          imageSrc: data.active_course_image_src,
+        }
+      : null,
+  };
 });
 
 export const getUnits = cache(async () => {
@@ -42,64 +59,101 @@ export const getUnits = cache(async () => {
 
   if (!userId || !userProgress?.activeCourseId) return [];
 
-  const data = await db.query.units.findMany({
-    where: eq(units.courseId, userProgress.activeCourseId),
-    orderBy: (units, { asc }) => [asc(units.order)],
-    with: {
-      lessons: {
-        orderBy: (lessons, { asc }) => [asc(lessons.order)],
-        with: {
-          challenges: {
-            orderBy: (challenges, { asc }) => [asc(challenges.order)],
-            with: {
-              challengeProgress: {
-                where: eq(challengeProgress.userId, userId),
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  // Fetch units
+  const { rows: units } = await db.query(
+    `
+    SELECT * FROM units
+    WHERE course_id = $1
+    ORDER BY "order" ASC
+  `,
+    [userProgress.activeCourseId]
+  );
 
-  const normalizedData = data.map((unit) => {
-    const lessonsWithCompletedStatus = unit.lessons.map((lesson) => {
-      if (lesson.challenges.length === 0)
-        return { ...lesson, completed: false };
+  const normalizedUnits = [];
 
-      const allCompletedChallenges = lesson.challenges.every((challenge) => {
-        return (
-          challenge.challengeProgress &&
-          challenge.challengeProgress.length > 0 &&
-          challenge.challengeProgress.every((progress) => progress.completed)
+  for (const unit of units) {
+    // Fetch lessons for each unit
+    const { rows: lessons } = await db.query(
+      `
+      SELECT * FROM lessons
+      WHERE unit_id = $1
+      ORDER BY "order" ASC
+    `,
+      [unit.id]
+    );
+
+    const normalizedLessons = [];
+
+    for (const lesson of lessons) {
+      // Fetch challenges for each lesson
+      const { rows: challenges } = await db.query(
+        `
+        SELECT * FROM challenges
+        WHERE lesson_id = $1
+        ORDER BY "order" ASC
+      `,
+        [lesson.id]
+      );
+
+      const normalizedChallenges = [];
+
+      for (const challenge of challenges) {
+        // Check challenge progress
+        const { rows: challengeProgress } = await db.query(
+          `
+          SELECT * FROM challenge_progress
+          WHERE challenge_id = $1 AND user_id = $2
+        `,
+          [challenge.id, userId]
         );
+
+        normalizedChallenges.push({
+          ...challenge,
+          challengeProgress: challengeProgress.length > 0 ? challengeProgress : null,
+        });
+      }
+
+      const allCompletedChallenges =
+        normalizedChallenges.length > 0 &&
+        normalizedChallenges.every((challenge) => {
+          return (
+            challenge.challengeProgress &&
+            challenge.challengeProgress.length > 0 &&
+            challenge.challengeProgress.every((progress) => progress.completed)
+          );
+        });
+
+      normalizedLessons.push({
+        ...lesson,
+        unitId: lesson.unit_id,
+        challenges: normalizedChallenges,
+        completed: allCompletedChallenges,
       });
+    }
 
-      return { ...lesson, completed: allCompletedChallenges };
+    normalizedUnits.push({
+      ...unit,
+      courseId: unit.course_id,
+      lessons: normalizedLessons,
     });
+  }
 
-    return { ...unit, lessons: lessonsWithCompletedStatus };
-  });
-
-  return normalizedData;
+  return normalizedUnits;
 });
 
 export const getCourseById = cache(async (courseId) => {
-  const data = await db.query.courses.findFirst({
-    where: eq(courses.id, courseId),
-    with: {
-      units: {
-        orderBy: (units, { asc }) => [asc(units.order)],
-        with: {
-          lessons: {
-            orderBy: (lessons, { asc }) => [asc(lessons.order)],
-          },
-        },
-      },
-    },
-  });
+  const { rows: courses } = await db.query(
+    "SELECT * FROM courses WHERE id = $1",
+    [courseId]
+  );
+  const course = courses[0];
 
-  return data;
+  if (!course) return null;
+
+  return {
+    ...course,
+    imageSrc: course.image_src,
+  };
 });
 
 export const getCourseProgress = cache(async () => {
@@ -108,36 +162,12 @@ export const getCourseProgress = cache(async () => {
 
   if (!userId || !userProgress?.activeCourseId) return null;
 
-  const unitsInActiveCourse = await db.query.units.findMany({
-    orderBy: (units, { asc }) => [asc(units.order)],
-    where: eq(units.courseId, userProgress.activeCourseId),
-    with: {
-      lessons: {
-        orderBy: (lessons, { asc }) => [asc(lessons.order)],
-        with: {
-          unit: true,
-          challenges: {
-            with: {
-              challengeProgress: {
-                where: eq(challengeProgress.userId, userId),
-              },
-            },
-          },
-        },
-      },
-    },
-  });
+  const units = await getUnits(); // Uses normalized structure from above
 
-  const firstUncompletedLesson = unitsInActiveCourse
+  const firstUncompletedLesson = units
     .flatMap((unit) => unit.lessons)
     .find((lesson) => {
-      return lesson.challenges.some((challenge) => {
-        return (
-          !challenge.challengeProgress ||
-          challenge.challengeProgress.length === 0 ||
-          challenge.challengeProgress.some((progress) => !progress.completed)
-        );
-      });
+      return !lesson.completed;
     });
 
   return {
@@ -156,33 +186,55 @@ export const getLesson = cache(async (id) => {
 
   if (!lessonId) return null;
 
-  const data = await db.query.lessons.findFirst({
-    where: eq(lessons.id, lessonId),
-    with: {
-      challenges: {
-        orderBy: (challenges, { asc }) => [asc(challenges.order)],
-        with: {
-          challengeOptions: true,
-          challengeProgress: {
-            where: eq(challengeProgress.userId, userId),
-          },
-        },
-      },
-    },
-  });
+  const { rows: lessons } = await db.query(
+    "SELECT * FROM lessons WHERE id = $1",
+    [lessonId]
+  );
+  const data = lessons[0];
 
-  if (!data || !data.challenges) return null;
+  if (!data) return null;
 
-  const normalizedChallenges = data.challenges.map((challenge) => {
+  const { rows: challenges } = await db.query(
+    `
+    SELECT * FROM challenges
+    WHERE lesson_id = $1
+    ORDER BY "order" ASC
+  `,
+    [lessonId]
+  );
+
+  const normalizedChallenges = [];
+
+  for (const challenge of challenges) {
+    const { rows: options } = await db.query(
+      "SELECT * FROM challenge_options WHERE challenge_id = $1",
+      [challenge.id]
+    );
+
+    const normalizedOptions = options.map((opt) => ({
+      ...opt,
+      challengeId: opt.challenge_id,
+      imageSrc: opt.image_src,
+      audioSrc: opt.audio_src,
+    }));
+
+    const { rows: progress } = await db.query(
+      "SELECT * FROM challenge_progress WHERE challenge_id = $1 AND user_id = $2",
+      [challenge.id, userId]
+    );
+
     const completed =
-      challenge.challengeProgress &&
-      challenge.challengeProgress.length > 0 &&
-      challenge.challengeProgress.every((progress) => progress.completed);
+      progress.length > 0 && progress.every((p) => p.completed);
 
-    return { ...challenge, completed };
-  });
+    normalizedChallenges.push({
+      ...challenge,
+      lessonId: challenge.lesson_id,
+      challengeOptions: normalizedOptions,
+      completed,
+    });
+  }
 
-  return { ...data, challenges: normalizedChallenges };
+  return { ...data, unitId: data.unit_id, challenges: normalizedChallenges };
 });
 
 export const getLessonPercentage = cache(async () => {
@@ -210,18 +262,25 @@ export const getUserSubscription = cache(async () => {
 
   if (!userId) return null;
 
-  const data = await db.query.userSubscription.findFirst({
-    where: eq(userSubscription.userId, userId),
-  });
+  const { rows } = await db.query(
+    "SELECT * FROM user_subscription WHERE user_id = $1",
+    [userId]
+  );
+  const data = rows[0];
 
   if (!data) return null;
 
   const isActive =
-    data.stripePriceId &&
-    data.stripeCurrentPeriodEnd?.getTime() + DAY_IN_MS > Date.now();
+    data.stripe_price_id &&
+    new Date(data.stripe_current_period_end).getTime() + DAY_IN_MS > Date.now();
 
   return {
     ...data,
+    userId: data.user_id,
+    stripeCustomerId: data.stripe_customer_id,
+    stripeSubscriptionId: data.stripe_subscription_id,
+    stripePriceId: data.stripe_price_id,
+    stripeCurrentPeriodEnd: data.stripe_current_period_end,
     isActive: !!isActive,
   };
 });
@@ -231,16 +290,19 @@ export const getTopTenUsers = cache(async () => {
 
   if (!userId) return [];
 
-  const data = await db.query.userProgress.findMany({
-    orderBy: (userProgress, { desc }) => [desc(userProgress.points)],
-    limit: 10,
-    columns: {
-      userId: true,
-      userName: true,
-      userImageSrc: true,
-      points: true,
-    },
-  });
+  const { rows } = await db.query(
+    `
+    SELECT user_id, user_name, user_image_src, points
+    FROM user_progress
+    ORDER BY points DESC
+    LIMIT 10
+  `
+  );
 
-  return data;
+  return rows.map((row) => ({
+    userId: row.user_id,
+    userName: row.user_name,
+    userImageSrc: row.user_image_src,
+    points: row.points,
+  }));
 });

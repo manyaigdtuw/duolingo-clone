@@ -1,17 +1,16 @@
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-import db from "@/db/drizzle";
-import { units } from "@/db/schema";
+import db from "@/db/index";
 import { getIsAdmin } from "@/lib/admin";
 
 export const GET = async (_req, { params }) => {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) return new NextResponse("Unauthorized.", { status: 401 });
 
-  const data = await db.query.units.findFirst({
-    where: eq(units.id, params.unitId),
-  });
+  const { rows } = await db.query("SELECT * FROM units WHERE id = $1", [
+    params.unitId,
+  ]);
+  const data = rows[0];
 
   return NextResponse.json(data);
 };
@@ -21,25 +20,24 @@ export const PUT = async (req, { params }) => {
   if (!isAdmin) return new NextResponse("Unauthorized.", { status: 401 });
 
   const body = await req.json();
-  const data = await db
-    .update(units)
-    .set({
-      ...body,
-    })
-    .where(eq(units.id, params.unitId))
-    .returning();
+  const { rows } = await db.query(
+    'UPDATE units SET title = $1, description = $2, course_id = $3, "order" = $4 WHERE id = $5 RETURNING *',
+    [body.title, body.description, body.courseId, body.order, params.unitId]
+  );
+  const data = rows[0];
 
-  return NextResponse.json(data[0]);
+  return NextResponse.json(data);
 };
 
 export const DELETE = async (_req, { params }) => {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) return new NextResponse("Unauthorized.", { status: 401 });
 
-  const data = await db
-    .delete(units)
-    .where(eq(units.id, params.unitId))
-    .returning();
+  const { rows } = await db.query(
+    "DELETE FROM units WHERE id = $1 RETURNING *",
+    [params.unitId]
+  );
+  const data = rows[0];
 
-  return NextResponse.json(data[0]);
+  return NextResponse.json(data);
 };

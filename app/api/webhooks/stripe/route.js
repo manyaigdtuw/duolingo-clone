@@ -1,9 +1,7 @@
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import db from "@/db/drizzle";
-import { userSubscription } from "@/db/schema";
+import db from "@/db/index";
 import { stripe } from "@/lib/stripe";
 
 export async function POST(req) {
@@ -35,13 +33,22 @@ export async function POST(req) {
     if (!session?.metadata?.userId)
       return new NextResponse("User id is required.", { status: 400 });
 
-    await db.insert(userSubscription).values({
-      userId: session.metadata.userId,
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: subscription.customer,
-      stripePriceId: subscription.items.data[0].price.id,
-      stripeCurrentPeriodEnd: new Date(subscription.current_period_end * 1000), // in ms
-    });
+    await db.query(
+      `INSERT INTO user_subscription (
+        user_id,
+        stripe_subscription_id,
+        stripe_customer_id,
+        stripe_price_id,
+        stripe_current_period_end
+      ) VALUES ($1, $2, $3, $4, $5)`,
+      [
+        session.metadata.userId,
+        subscription.id,
+        subscription.customer,
+        subscription.items.data[0].price.id,
+        new Date(subscription.current_period_end * 1000), // in ms
+      ]
+    );
   }
 
   // renew user subscription
@@ -50,15 +57,16 @@ export async function POST(req) {
       session.subscription
     );
 
-    await db
-      .update(userSubscription)
-      .set({
-        stripePriceId: subscription.items.data[0].price.id,
-        stripeCurrentPeriodEnd: new Date(
-          subscription.current_period_end * 1000 // in ms
-        ),
-      })
-      .where(eq(userSubscription.stripeSubscriptionId, subscription.id));
+    await db.query(
+      `UPDATE user_subscription
+       SET stripe_price_id = $1, stripe_current_period_end = $2
+       WHERE stripe_subscription_id = $3`,
+      [
+        subscription.items.data[0].price.id,
+        new Date(subscription.current_period_end * 1000), // in ms
+        subscription.id,
+      ]
+    );
   }
 
   return new NextResponse(null, { status: 200 });
