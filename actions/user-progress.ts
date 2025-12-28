@@ -62,6 +62,7 @@ export const reduceHearts = async (challengeId: number) => {
   if (!userId) throw new Error("Unauthorized.");
 
   const currentUserProgress = await getUserProgress();
+  // We still fetch subscription to check if "Infinite Hearts" applies, which we are forcing to true.
   const userSubscription = await getUserSubscription();
 
   const challenge = await db.query.challenges.findFirst({
@@ -85,6 +86,9 @@ export const reduceHearts = async (challengeId: number) => {
 
   if (!currentUserProgress) throw new Error("User progress not found.");
 
+  // Since we want to make it free, we effectively treat everyone as subscribed.
+  // The frontend handles `error: "subscription"` by NOT reducing hearts locally.
+  // So returning this error is actually the correct behavior to implement "Infinite Hearts".
   if (userSubscription?.isActive) return { error: "subscription" };
 
   if (currentUserProgress.hearts === 0) return { error: "hearts" };
