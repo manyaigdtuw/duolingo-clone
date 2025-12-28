@@ -1,6 +1,5 @@
 import { InfinityIcon, X } from "lucide-react";
 import Image from "next/image";
-
 import { Progress } from "@/components/ui/progress";
 import { useExitModal } from "@/store/use-exit-modal";
 
@@ -13,9 +12,7 @@ export const Header = ({ percentage }) => {
         onClick={open}
         className="cursor-pointer text-slate-500 transition hover:opacity-75"
       />
-
       <Progress value={percentage} />
-
       <div className="flex items-center font-bold text-rose-500">
         <Image
           src="/heart.svg"
