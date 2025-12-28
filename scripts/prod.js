@@ -12,7 +12,6 @@ const main = async () => {
     await db.query("DELETE FROM lessons");
     await db.query("DELETE FROM courses");
     await db.query("DELETE FROM challenge_options");
-    await db.query("DELETE FROM user_subscription");
 
     // Insert courses
     const { rows: courses } = await db.query(

@@ -5,7 +5,6 @@ DROP TABLE IF EXISTS "lessons" CASCADE;
 DROP TABLE IF EXISTS "units" CASCADE;
 DROP TABLE IF EXISTS "user_progress" CASCADE;
 DROP TABLE IF EXISTS "courses" CASCADE;
-DROP TABLE IF EXISTS "user_subscription" CASCADE;
 
 CREATE TYPE "challenges_type" AS ENUM ('SELECT', 'ASSIST');
 
@@ -61,13 +60,4 @@ CREATE TABLE "user_progress" (
   "active_course_id" INTEGER REFERENCES "courses"("id") ON DELETE CASCADE,
   "hearts" INTEGER NOT NULL DEFAULT 5,
   "points" INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE "user_subscription" (
-  "id" SERIAL PRIMARY KEY,
-  "user_id" TEXT NOT NULL UNIQUE,
-  "stripe_customer_id" TEXT NOT NULL UNIQUE,
-  "stripe_subscription_id" TEXT NOT NULL UNIQUE,
-  "stripe_price_id" TEXT NOT NULL,
-  "stripe_current_period_end" TIMESTAMP NOT NULL
 );

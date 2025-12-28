@@ -258,30 +258,9 @@ export const getLessonPercentage = cache(async () => {
 });
 
 export const getUserSubscription = cache(async () => {
-  const { userId } = await auth();
-
-  if (!userId) return null;
-
-  const { rows } = await db.query(
-    "SELECT * FROM user_subscription WHERE user_id = $1",
-    [userId]
-  );
-  const data = rows[0];
-
-  if (!data) return null;
-
-  const isActive =
-    data.stripe_price_id &&
-    new Date(data.stripe_current_period_end).getTime() + DAY_IN_MS > Date.now();
-
+  // Always return active subscription to unlock all features
   return {
-    ...data,
-    userId: data.user_id,
-    stripeCustomerId: data.stripe_customer_id,
-    stripeSubscriptionId: data.stripe_subscription_id,
-    stripePriceId: data.stripe_price_id,
-    stripeCurrentPeriodEnd: data.stripe_current_period_end,
-    isActive: !!isActive,
+    isActive: true,
   };
 });
 
