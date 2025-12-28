@@ -6,11 +6,7 @@ import { redirect } from "next/navigation";
 
 import { MAX_HEARTS, POINTS_TO_REFILL } from "@/constants";
 import db from "@/db/index";
-import {
-  getCourseById,
-  getUserProgress,
-  getUserSubscription,
-} from "@/db/queries";
+import { getCourseById, getUserProgress } from "@/db/queries";
 
 export const upsertUserProgress = async (courseId) => {
   const { userId } = await auth();
@@ -71,7 +67,6 @@ export const reduceHearts = async (challengeId) => {
   if (!userId) throw new Error("Unauthorized.");
 
   const currentUserProgress = await getUserProgress();
-  const userSubscription = await getUserSubscription();
 
   const { rows: challenges } = await db.query(
     "SELECT * FROM challenges WHERE id = $1",
@@ -80,8 +75,6 @@ export const reduceHearts = async (challengeId) => {
   const challenge = challenges[0];
 
   if (!challenge) throw new Error("Challenge not found.");
-
-  const lessonId = challenge.lesson_id;
 
   const { rows: existingChallengeProgress } = await db.query(
     `
@@ -97,24 +90,9 @@ export const reduceHearts = async (challengeId) => {
 
   if (!currentUserProgress) throw new Error("User progress not found.");
 
-  if (userSubscription?.isActive) return { error: "subscription" };
-
-  if (currentUserProgress.hearts === 0) return { error: "hearts" };
-
-  await db.query(
-    `
-    UPDATE user_progress
-    SET hearts = GREATEST(hearts - 1, 0)
-    WHERE user_id = $1
-  `,
-    [userId]
-  );
-
-  revalidatePath("/shop");
-  revalidatePath("/learn");
-  revalidatePath("/quests");
-  revalidatePath("/leaderboard");
-  revalidatePath(`/lesson/${lessonId}`);
+  // Always return subscription error to prevent heart reduction in UI
+  // and do NOT update the database
+  return { error: "subscription" };
 };
 
 export const refillHearts = async () => {
