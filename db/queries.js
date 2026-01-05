@@ -141,55 +141,20 @@ export const getUnits = cache(async () => {
   return normalizedUnits;
 });
 
-
-export const getCourseById = async (courseId) => {
-  const { rows } = await db.query(
-    `
-    SELECT
-      c.id,
-      c.title,
-      c.image_src,
-      COALESCE(
-        (
-          SELECT json_agg(unit_json ORDER BY unit_order)
-          FROM (
-            SELECT
-              u."order" AS unit_order,
-              jsonb_build_object(
-                'id', u.id,
-                'title', u.title,
-                'order', u."order",
-                'lessons', (
-                  SELECT COALESCE(
-                    json_agg(
-                      jsonb_build_object(
-                        'id', l.id,
-                        'title', l.title,
-                        'order', l."order"
-                      )
-                      ORDER BY l."order"
-                    ),
-                    '[]'::json
-                  )
-                  FROM lessons l
-                  WHERE l.unit_id = u.id
-                )
-              ) AS unit_json
-            FROM units u
-            WHERE u.course_id = c.id
-          ) unit_rows
-        ),
-        '[]'::json
-      ) AS units
-    FROM courses c
-    WHERE c.id = $1
-    `,
+export const getCourseById = cache(async (courseId) => {
+  const { rows: courses } = await db.query(
+    "SELECT * FROM courses WHERE id = $1",
     [courseId]
   );
+  const course = courses[0];
 
-  return rows[0] ?? null;
-};
+  if (!course) return null;
 
+  return {
+    ...course,
+    imageSrc: course.image_src,
+  };
+});
 
 export const getCourseProgress = cache(async () => {
   const { userId } = await auth();
@@ -293,30 +258,9 @@ export const getLessonPercentage = cache(async () => {
 });
 
 export const getUserSubscription = cache(async () => {
-  const { userId } = await auth();
-
-  if (!userId) return null;
-
-  const { rows } = await db.query(
-    "SELECT * FROM user_subscription WHERE user_id = $1",
-    [userId]
-  );
-  const data = rows[0];
-
-  if (!data) return null;
-
-  const isActive =
-    data.stripe_price_id &&
-    new Date(data.stripe_current_period_end).getTime() + DAY_IN_MS > Date.now();
-
+  // Always return active subscription to unlock all features
   return {
-    ...data,
-    userId: data.user_id,
-    stripeCustomerId: data.stripe_customer_id,
-    stripeSubscriptionId: data.stripe_subscription_id,
-    stripePriceId: data.stripe_price_id,
-    stripeCurrentPeriodEnd: data.stripe_current_period_end,
-    isActive: !!isActive,
+    isActive: true,
   };
 });
 

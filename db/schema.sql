@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS "units" CASCADE;
 DROP TABLE IF EXISTS "user_progress" CASCADE;
 DROP TABLE IF EXISTS "courses" CASCADE;
 
-CREATE TYPE "challenges_type" AS ENUM ('SELECT', 'ASSIST');
+CREATE TYPE "challenges_type" AS ENUM ('SELECT', 'ASSIST', 'FILL_IN');
 
 CREATE TABLE "courses" (
   "id" SERIAL PRIMARY KEY,
@@ -34,7 +34,8 @@ CREATE TABLE "challenges" (
   "lesson_id" INTEGER NOT NULL REFERENCES "lessons"("id") ON DELETE CASCADE,
   "type" "challenges_type" NOT NULL,
   "question" TEXT NOT NULL,
-  "order" INTEGER NOT NULL
+  "order" INTEGER NOT NULL,
+  "hint" TEXT
 );
 
 CREATE TABLE "challenge_options" (
