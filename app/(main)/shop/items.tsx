@@ -74,6 +74,7 @@ export const Items = ({
         </Button>
       </div>
 
+      {/* TEMPORARY: Disable Stripe
       <div className="flex w-full items-center gap-x-4 border-t-2 p-4 pt-8">
         <Image src="/unlimited.svg" alt="Unlimited" height={60} width={60} />
 
@@ -87,6 +88,7 @@ export const Items = ({
           {hasActiveSubscription ? "settings" : "upgrade"}
         </Button>
       </div>
+      */}
     </ul>
   );
 };

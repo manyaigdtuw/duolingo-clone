@@ -28,12 +28,20 @@ export const getUserProgress = cache(async () => {
 
   const data = await db.query.userProgress.findFirst({
     where: eq(userProgress.userId, userId),
-    with: {
-      activeCourse: true,
-    },
   });
 
-  return data;
+  if (!data) return null;
+
+  const activeCourse = data.activeCourseId
+    ? await db.query.courses.findFirst({
+        where: eq(courses.id, data.activeCourseId),
+      })
+    : null;
+
+  return {
+    ...data,
+    activeCourse,
+  };
 });
 
 export const getUnits = cache(async () => {
@@ -210,19 +218,31 @@ export const getUserSubscription = cache(async () => {
 
   if (!userId) return null;
 
-  const data = await db.query.userSubscription.findFirst({
-    where: eq(userSubscription.userId, userId),
-  });
+  // const data = await db.query.userSubscription.findFirst({
+  //   where: eq(userSubscription.userId, userId),
+  // });
 
-  if (!data) return null;
+  // if (!data) return null;
 
-  const isActive =
-    data.stripePriceId &&
-    data.stripeCurrentPeriodEnd?.getTime() + DAY_IN_MS > Date.now();
+  // const isActive =
+  //   data.stripePriceId &&
+  //   data.stripeCurrentPeriodEnd?.getTime() + DAY_IN_MS > Date.now();
 
+  // return {
+  //   ...data,
+  //   isActive: !!isActive,
+  // };
+
+  // TEMPORARY: Disable Stripe and unlock all features
   return {
-    ...data,
-    isActive: !!isActive,
+    id: 0,
+    userId: userId,
+    stripeCustomerId: "",
+    stripeSubscriptionId: "",
+    stripePriceId: "",
+    stripeCurrentPeriodEnd: new Date(),
+    // ...data,
+    isActive: true,
   };
 });
 

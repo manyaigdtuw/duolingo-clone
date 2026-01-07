@@ -80,6 +80,7 @@ export const Quiz = ({
 
   const [selectedOption, setSelectedOption] = useState<number>();
   const [status, setStatus] = useState<"none" | "wrong" | "correct">("none");
+  const [inputValue, setInputValue] = useState("");
 
   const challenge = challenges[activeIndex];
   const options = challenge?.challengeOptions ?? [];
@@ -94,8 +95,14 @@ export const Quiz = ({
     setSelectedOption(id);
   };
 
+  const onInputChange = (value: string) => {
+    if (status !== "none") return;
+
+    setInputValue(value);
+  };
+
   const onContinue = () => {
-    if (!selectedOption) return;
+    if (!selectedOption && !inputValue) return;
 
     if (status === "wrong") {
       setStatus("none");
@@ -107,6 +114,7 @@ export const Quiz = ({
       onNext();
       setStatus("none");
       setSelectedOption(undefined);
+      setInputValue("");
       return;
     }
 
@@ -114,7 +122,24 @@ export const Quiz = ({
 
     if (!correctOption) return;
 
-    if (correctOption.id === selectedOption) {
+    let isCorrect = false;
+
+    if (challenge.type === "FILL_IN_THE_BLANKS") {
+      // Check if input value matches any correct option text
+      // We assume there is at least one correct option.
+      // If there are multiple correct options, we can check against all of them?
+      // But the logic above finds the *first* correct option.
+      // Let's filter all correct options.
+      const correctOptions = options.filter((option) => option.correct);
+      isCorrect = correctOptions.some(
+        (option) =>
+          option.text.toLowerCase().trim() === inputValue.toLowerCase().trim()
+      );
+    } else {
+      isCorrect = correctOption.id === selectedOption;
+    }
+
+    if (isCorrect) {
       startTransition(() => {
         upsertChallengeProgress(challenge.id)
           .then((response) => {
@@ -237,6 +262,8 @@ export const Quiz = ({
                 selectedOption={selectedOption}
                 disabled={pending}
                 type={challenge.type}
+                inputValue={inputValue}
+                onInputChange={onInputChange}
               />
             </div>
           </div>
@@ -244,7 +271,7 @@ export const Quiz = ({
       </div>
 
       <Footer
-        disabled={pending || !selectedOption}
+        disabled={pending || (!selectedOption && !inputValue)}
         status={status}
         onCheck={onContinue}
       />
