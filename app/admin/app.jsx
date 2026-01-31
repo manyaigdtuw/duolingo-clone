@@ -6,6 +6,9 @@ import { Admin, Resource } from "react-admin";
 import { ChallengeCreate } from "./challenge/create";
 import { ChallengeEdit } from "./challenge/edit";
 import { ChallengeList } from "./challenge/list";
+import { ChallengeCorrectAnswerCreate } from "./challengeCorrectAnswer/create";
+import { ChallengeCorrectAnswerEdit } from "./challengeCorrectAnswer/edit";
+import { ChallengeCorrectAnswerList } from "./challengeCorrectAnswer/list";
 import { ChallengeOptionCreate } from "./challengeOption/create";
 import { ChallengeOptionEdit } from "./challengeOption/edit";
 import { ChallengeOptionsList } from "./challengeOption/list";
@@ -64,6 +67,17 @@ const App = () => {
         edit={ChallengeOptionEdit}
         options={{
           label: "Challenge Options",
+        }}
+      />
+
+      <Resource
+        name="challengeCorrectAnswers"
+        recordRepresentation="answer"
+        list={ChallengeCorrectAnswerList}
+        create={ChallengeCorrectAnswerCreate}
+        edit={ChallengeCorrectAnswerEdit}
+        options={{
+          label: "Fill-in-Blank Answers",
         }}
       />
     </Admin>

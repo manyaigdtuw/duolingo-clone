@@ -25,6 +25,10 @@ export const ChallengeEdit = () => {
               id: "ASSIST",
               name: "ASSIST",
             },
+            {
+              id: "FILL_IN_BLANK",
+              name: "FILL_IN_BLANK",
+            },
           ]}
         />
         <ReferenceInput source="lessonId" reference="lessons" />

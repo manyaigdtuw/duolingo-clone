@@ -1,0 +1,6 @@
+﻿lessonid,type,order,question,option1,option2,option3,correctoption
+15,SELECT,1,This ?,इदम् ,तत्,किम्,1
+15,SELECT,2,What?,केषाम्,तव,किम्,3
+15,SELECT,3,Medicine ?,विषः,ओषधिः ,भोजनम्,2
+15,SELECT,4,Nose?,विषः,ओषधिः ,नासिका,3
+15,SELECT,5,Disease ?,शयनम् ,रोगः ,स्वास्थ्यः,2

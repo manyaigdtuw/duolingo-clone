@@ -14,6 +14,46 @@ export const getCourses = cache(async () => {
   }));
 });
 
+export const getLesson = async (id) => {
+  // Fetch the lesson
+  const { rows: lessonRows } = await db.query(
+    "SELECT * FROM lessons WHERE id = $1",
+    [id]
+  );
+
+  if (lessonRows.length === 0) return null;
+
+  const lesson = lessonRows[0];
+
+  // Fetch challenges for this lesson
+  const { rows: challenges } = await db.query(
+    "SELECT * FROM challenges WHERE lesson_id = $1 ORDER BY \"order\" ASC",
+    [id]
+  );
+
+  // For each challenge, fetch options and correct answers
+  for (const challenge of challenges) {
+    // Fetch challenge options
+    const { rows: options } = await db.query(
+      "SELECT * FROM challenge_options WHERE challenge_id = $1",
+      [challenge.id]
+    );
+    challenge.challengeOptions = options;
+
+    // Fetch correct answers for fill-in-blank questions
+    const { rows: correctAnswers } = await db.query(
+      "SELECT * FROM challenge_correct_answers WHERE challenge_id = $1",
+      [challenge.id]
+    );
+    challenge.correctAnswers = correctAnswers;
+  }
+
+  lesson.challenges = challenges;
+
+  return lesson;
+};
+
+
 export const getUserProgress = cache(async () => {
   const { userId } = await auth();
 
@@ -45,10 +85,10 @@ export const getUserProgress = cache(async () => {
     points: data.points,
     activeCourse: data.active_course_id
       ? {
-          id: data.active_course_id,
-          title: data.active_course_title,
-          imageSrc: data.active_course_image_src,
-        }
+        id: data.active_course_id,
+        title: data.active_course_title,
+        imageSrc: data.active_course_image_src,
+      }
       : null,
   };
 });
@@ -197,7 +237,7 @@ export const getCourseProgress = cache(async () => {
 
   if (!userId || !userProgress?.activeCourseId) return null;
 
-  const units = await getUnits(); // Uses normalized structure from above
+  const units = await getUnits(); 
 
   const firstUncompletedLesson = units
     .flatMap((unit) => unit.lessons)
@@ -211,66 +251,6 @@ export const getCourseProgress = cache(async () => {
   };
 });
 
-export const getLesson = cache(async (id) => {
-  const { userId } = await auth();
-
-  if (!userId) return null;
-
-  const courseProgress = await getCourseProgress();
-  const lessonId = id || courseProgress?.activeLessonId;
-
-  if (!lessonId) return null;
-
-  const { rows: lessons } = await db.query(
-    "SELECT * FROM lessons WHERE id = $1",
-    [lessonId]
-  );
-  const data = lessons[0];
-
-  if (!data) return null;
-
-  const { rows: challenges } = await db.query(
-    `
-    SELECT * FROM challenges
-    WHERE lesson_id = $1
-    ORDER BY "order" ASC
-  `,
-    [lessonId]
-  );
-
-  const normalizedChallenges = [];
-
-  for (const challenge of challenges) {
-    const { rows: options } = await db.query(
-      "SELECT * FROM challenge_options WHERE challenge_id = $1",
-      [challenge.id]
-    );
-
-    const normalizedOptions = options.map((opt) => ({
-      ...opt,
-      challengeId: opt.challenge_id,
-      imageSrc: opt.image_src,
-      audioSrc: opt.audio_src,
-    }));
-
-    const { rows: progress } = await db.query(
-      "SELECT * FROM challenge_progress WHERE challenge_id = $1 AND user_id = $2",
-      [challenge.id, userId]
-    );
-
-    const completed =
-      progress.length > 0 && progress.every((p) => p.completed);
-
-    normalizedChallenges.push({
-      ...challenge,
-      lessonId: challenge.lesson_id,
-      challengeOptions: normalizedOptions,
-      completed,
-    });
-  }
-
-  return { ...data, unitId: data.unit_id, challenges: normalizedChallenges };
-});
 
 export const getLessonPercentage = cache(async () => {
   const courseProgress = await getCourseProgress();

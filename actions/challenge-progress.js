@@ -54,14 +54,27 @@ export const upsertChallengeProgress = async (challengeId) => {
       [existingChallengeProgress[0].id]
     );
 
-    await db.query(
-      `
-      UPDATE user_progress
-      SET hearts = LEAST(hearts + 1, $1), points = points + 10
-      WHERE user_id = $2
-    `,
-      [MAX_HEARTS, userId]
-    );
+    // Only update hearts if MAX_HEARTS is not Infinity
+    if (MAX_HEARTS !== Infinity) {
+      await db.query(
+        `
+        UPDATE user_progress
+        SET hearts = LEAST(hearts + 1, $1), points = points + 10
+        WHERE user_id = $2
+      `,
+        [MAX_HEARTS, userId]
+      );
+    } else {
+      // With unlimited hearts, just update points
+      await db.query(
+        `
+        UPDATE user_progress
+        SET points = points + 10
+        WHERE user_id = $1
+      `,
+        [userId]
+      );
+    }
 
     revalidatePath("/learn");
     revalidatePath("/lesson");

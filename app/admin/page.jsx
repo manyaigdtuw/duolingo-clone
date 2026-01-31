@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getIsAdmin } from "@/lib/admin";
 
-const App = dynamic(() => import("./app"), { ssr: false });
+const App = dynamic(() => import("./app"));
 
 const AdminPage = async () => {
   const isAdmin = await getIsAdmin();

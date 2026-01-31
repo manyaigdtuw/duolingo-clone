@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import Confetti from "react-confetti";
-import { useAudio, useWindowSize, useMount } from "react-use";
+import { useAudio, useMount, useWindowSize } from "react-use";
 import { toast } from "sonner";
 
 import { Challenge } from "./challenge";
@@ -15,6 +16,7 @@ import { ResultCard } from "./result-card";
 
 import { upsertChallengeProgress } from "@/actions/challenge-progress";
 import { reduceHearts } from "@/actions/user-progress";
+import { FillInBlankChallenge } from "@/components/fill-in-blank-challenge";
 import { usePracticeModal } from "@/store/use-practice-modal";
 
 export const Quiz = ({
@@ -44,6 +46,7 @@ export const Quiz = ({
   });
 
   const [lessonId] = useState(initialLessonId);
+  // eslint-disable-next-line no-unused-vars
   const [hearts] = useState(initialHearts); // Will be Infinity
   const [percentage, setPercentage] = useState(() => {
     return initialPercentage === 100 ? 0 : initialPercentage;
@@ -72,8 +75,46 @@ export const Quiz = ({
     setSelectedOption(id);
   };
 
+  // Handler for fill-in-blank answers
+  const onFillInBlankAnswer = (isCorrect) => {
+    // Handle retry signal
+    if (isCorrect === null) {
+      setStatus("none");
+      return;
+    }
+
+    if (status !== "none") return;
+
+    if (isCorrect) {
+      startTransition(() => {
+        upsertChallengeProgress(challenge.id)
+          .then(() => {
+            void correctControls.play();
+            setStatus("correct");
+            setPercentage((prev) => prev + 100 / challenges.length);
+            // Auto-advance after a short delay
+            setTimeout(() => {
+              onNext();
+              setStatus("none");
+            }, 1000);
+          })
+          .catch(() => toast.error("Something went wrong. Please try again."));
+      });
+    } else {
+      startTransition(() => {
+        reduceHearts(challenge.id)
+          .then(() => {
+            void incorrectControls.play();
+            setStatus("wrong");
+          })
+          .catch(() => toast.error("Something went wrong. Please try again."));
+      });
+    }
+  };
+
   const onContinue = () => {
-    if (!selectedOption) return;
+    // For fill-in-blank questions, allow continue without selectedOption
+    if (challenge.type !== "FILL_IN_BLANK" && !selectedOption) return;
 
     if (status === "wrong") {
       setStatus("none");
@@ -162,7 +203,9 @@ export const Quiz = ({
   const title =
     challenge.type === "ASSIST"
       ? "Select the correct meaning"
-      : challenge.question;
+      : challenge.type === "FILL_IN_BLANK"
+        ? "Fill in the blank"
+        : challenge.question;
 
   return (
     <>
@@ -179,20 +222,33 @@ export const Quiz = ({
               {challenge.type === "ASSIST" && (
                 <QuestionBubble question={challenge.question} />
               )}
-              <Challenge
-                options={options}
-                onSelect={onSelect}
-                status={status}
-                selectedOption={selectedOption}
-                disabled={pending}
-                type={challenge.type}
-              />
+              {challenge.type === "FILL_IN_BLANK" ? (
+                <FillInBlankChallenge
+                  question={challenge.question}
+                  correctAnswers={challenge.correctAnswers || []}
+                  onAnswer={onFillInBlankAnswer}
+                  status={status}
+                  disabled={pending}
+                />
+              ) : (
+                <Challenge
+                  options={options}
+                  onSelect={onSelect}
+                  status={status}
+                  selectedOption={selectedOption}
+                  disabled={pending}
+                  type={challenge.type}
+                />
+              )}
             </div>
           </div>
         </div>
       </div>
       <Footer
-        disabled={pending || !selectedOption}
+        disabled={
+          pending ||
+          (challenge.type !== "FILL_IN_BLANK" && !selectedOption)
+        }
         status={status}
         onCheck={onContinue}
       />

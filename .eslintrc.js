@@ -5,7 +5,7 @@ module.exports = {
   rules: {
     "no-undef": "off", // Next.js handles globals like Promise
     "import/order": [
-      "error",
+      "warn",
       {
         groups: ["builtin", "external", "internal", ["parent", "sibling"]],
         pathGroups: [
